@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Metro Navigator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Google Fonts and Material Icons for UI polish -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Vertical Sidebar Nav -->
+    <nav class="sidebar">
+        <div class="sidebar-title">
+            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">tram</span>
+            Smart Metro Navigator
+        </div>
+        <ul>
+            <li class="active"><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('route_page') }}">Routes</a></li>
+            <li><a href="{{ url_for('station_page') }}">Station</a></li>
+            <li><a href="#">Real-Time Updates</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-content">
+        <main>
+            <h1 class="main-title">Smart Metro Navigator</h1>
+            <div class="station-dropdowns">
+                <select id="sourceDropdown" class="station-select">
+                    <option value="">Select Source Station</option>
+                </select>
+                <select id="destinationDropdown" class="station-select">
+                    <option value="">Select Destination Station</option>
+                </select>
+                <button id="searchBtn" class="find-route-btn">Find Route</button>
+            </div>
+            <div class="metro-map">
+                <img 
+                  src="/static/metro/metro.jpg" 
+                  alt="Delhi Metro Map" 
+                  style="width:100%;max-width:900px;display:block;margin:auto;border-radius:1.5rem;"
+                >
+            </div>          
+            <section class="route-details hidden" id="routeDetails">
+                <div class="route-summary">
+                    <div>
+                        <span>From:</span>
+                        <span id="sourceStation"></span>
+                    </div>
+                    <div>
+                        <span>To:</span>
+                        <span id="destStation"></span>
+                    </div>
+                    <div>
+                        <span id="totalDistance">0 km</span>
+                        <span>Total Distance</span>
+                    </div>
+                    <div>
+                        <span id="totalStations">0</span>
+                        <span>Stations</span>
+                    </div>
+                    <div>
+                        <span id="estimatedFare">₹0</span>
+                        <span>Approx Fare</span>
+                    </div>
+                </div>
+                <div>
+                    <h3>Route:</h3>
+                    <ol id="stationList"></ol>
+                </div>
+            </section>
+            <div class="no-route hidden" id="noRoute">
+                No route found between the selected stations.
+            </div>
+            <section class="alerts-section">
+                <h2>Upcoming Alerts</h2>
+                <div class="alert-grid">
+                    <div class="alert-card blue">
+                        <span class="material-icons">train</span>
+                        <div>
+                            <div class="alert-title">Ulatt Rovide</div>
+                            <div class="alert-desc">YA SEC2 Reaidelal DoliO ars</div>
+                        </div>
+                    </div>
+                    <div class="alert-card red">
+                        <span class="material-icons">directions_bus</span>
+                        <div>
+                            <div class="alert-title">Boct Detay</div>
+                            <div class="alert-desc">Plet Plur Relvies. 12 Covg</div>
+                        </div>
+                    </div>
+                    <div class="alert-card green">
+                        <span class="material-icons">info</span>
+                        <div>
+                            <div class="alert-title">Nalorst Bliqing</div>
+                            <div class="alert-desc">NLU Stry Elevalet SR. 9DM</div>
+                        </div>
+                    </div>
+                    <div class="alert-card orange">
+                        <span class="material-icons">warning</span>
+                        <div>
+                            <div class="alert-title">Prowainy Dalrics</div>
+                            <div class="alert-desc">Eprss Prody Bs bas T R Sem</div>
+                        </div>
+                    </div>
+                    <div class="alert-card gray">
+                        <span class="material-icons">info</span>
+                        <div>
+                            <div class="alert-title">Gnterro Ibulev</div>
+                            <div class="alert-desc">Tter tidio aer accitel... 9L 29</div>
+                        </div>
+                    </div>
+                    <div class="alert-card teal">
+                        <span class="material-icons">info</span>
+                        <div>
+                            <div class="alert-title">Rorick Romuig</div>
+                            <div class="alert-desc">Tet fouheur coutiles at OL uses</div>
+                        </div>
+                    </div>
+                    <div class="alert-card gray">
+                        <span class="material-icons">info</span>
+                        <div>
+                            <div class="alert-title">Hilwartbg</div>
+                            <div class="alert-desc">PL Ehese estelales Tliuit sas</div>
+                        </div>
+                    </div>
+                    <div class="alert-card blue">
+                        <span class="material-icons">info</span>
+                        <div>
+                            <div class="alert-title">Deroguides</div>
+                            <div class="alert-desc">N. S25 Filei Molols. 2.9 Parm</div>
+                        </div>
+                    </div>
+                    <div class="alert-card orange">
+                        <span class="material-icons">info</span>
+                        <div>
+                            <div class="alert-title">Unvicet</div>
+                            <div class="alert-desc">Tot a Conrend Bllati S3.Tearo</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+        <footer>
+            <div class="footer-links">
+                <a href="#">Copy↓Privacy Policy</a>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+            </div>
+        </footer>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

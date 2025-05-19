@@ -1,0 +1,988 @@
+from flask import Flask, render_template, request, jsonify
+import heapq
+import math
+
+app = Flask(__name__)
+
+# ---- HTML PAGES ----
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/station')
+def station_page():
+    return render_template('station.html')
+
+@app.route('/route')
+def route_page():
+    return render_template('route.html')
+
+# ---- METRO DATA ----
+
+metro_graph = {
+  "stations": {
+    "Shaheed Sthal": {
+      "coords": [28.6925, 77.4986],
+      "neighbors": ["Hindon"]
+    },
+    "Hindon": {
+      "coords": [28.6811, 77.4823],
+      "neighbors": ["Shaheed Sthal", "Arthala"]
+    },
+    "Arthala": {
+      "coords": [28.6741, 77.4712],
+      "neighbors": ["Hindon", "Mohan Nagar"]
+    },
+    "Mohan Nagar": {
+      "coords": [28.6579, 77.4474],
+      "neighbors": ["Arthala", "Shyam Park"]
+    },
+    "Shyam Park": {
+      "coords": [28.6502, 77.4345],
+      "neighbors": ["Mohan Nagar", "Major Mohit Sharma"]
+    },
+    "Major Mohit Sharma": {
+      "coords": [28.6430, 77.4230],
+      "neighbors": ["Shyam Park", "Raj Bagh"]
+    },
+    "Raj Bagh": {
+      "coords": [28.6360, 77.4130],
+      "neighbors": ["Major Mohit Sharma", "Shaheed Nagar"]
+    },
+    "Shaheed Nagar": {
+      "coords": [28.6300, 77.4050],
+      "neighbors": ["Raj Bagh", "Dilshad Garden"]
+    },
+    "Dilshad Garden": {
+      "coords": [28.6772, 77.3077],
+      "neighbors": ["Shaheed Nagar", "Jhil Mil"]
+    },
+    "Jhil Mil": {
+      "coords": [28.6815, 77.2995],
+      "neighbors": ["Dilshad Garden", "Mansarovar Park"]
+    },
+    "Mansarovar Park": {
+      "coords": [28.6848, 77.2927],
+      "neighbors": ["Jhil Mil", "Shahdara"]
+    },
+    "Shahdara": {
+      "coords": [28.6810, 77.2822],
+      "neighbors": ["Mansarovar Park", "Welcome"]
+    },
+    "Welcome": {
+      "coords": [28.6781, 77.2670],
+      "neighbors": ["Shahdara", "Seelampur", "East Azad Nagar"]
+    },
+    "Seelampur": {
+      "coords": [28.6776, 77.2582],
+      "neighbors": ["Welcome", "Shastri Park"]
+    },
+    "Shastri Park": {
+      "coords": [28.6732, 77.2472],
+      "neighbors": ["Seelampur", "Kashmere Gate"]
+    },
+    "Kashmere Gate": {
+      "coords": [28.6675, 77.2273],
+      "neighbors": ["Shastri Park", "Tis Hazari", "Civil Lines", "Lal Qila"]
+    },
+    "Tis Hazari": {
+      "coords": [28.6697, 77.2086],
+      "neighbors": ["Kashmere Gate", "Pul Bangash"]
+    },
+    "Pul Bangash": {
+      "coords": [28.6740, 77.1980],
+      "neighbors": ["Tis Hazari", "Pratap Nagar"]
+    },
+    "Pratap Nagar": {
+      "coords": [28.6767, 77.1919],
+      "neighbors": ["Pul Bangash", "Shastri Nagar"]
+    },
+    "Shastri Nagar": {
+      "coords": [28.6848, 77.1748],
+      "neighbors": ["Pratap Nagar", "Inder Lok"]
+    },
+    "Inder Lok": {
+      "coords": [28.6870, 77.1637],
+      "neighbors": ["Shastri Nagar", "Kanhiya Nagar"]
+    },
+    "Kanhiya Nagar": {
+      "coords": [28.6926, 77.1533],
+      "neighbors": ["Inder Lok", "Keshav Puram"]
+    },
+    "Keshav Puram": {
+      "coords": [28.6959, 77.1426],
+      "neighbors": ["Kanhiya Nagar", "Netaji Subhash Place"]
+    },
+    "Netaji Subhash Place": {
+      "coords": [28.6981, 77.1349],
+      "neighbors": ["Keshav Puram", "Kohat Enclave", "Shalimar Bagh"]
+    },
+    "Kohat Enclave": {
+      "coords": [28.6994, 77.1229],
+      "neighbors": ["Netaji Subhash Place", "Pitampura"]
+    },
+    "Pitampura": {
+      "coords": [28.7038, 77.1160],
+      "neighbors": ["Kohat Enclave", "Rohini East"]
+    },
+    "Rohini East": {
+      "coords": [28.7137, 77.1037],
+      "neighbors": ["Pitampura", "Rohini West"]
+    },
+    "Rohini West": {
+      "coords": [28.7237, 77.1011],
+      "neighbors": ["Rohini East", "Rithala"]
+    },
+    "Rithala": {
+      "coords": [28.7325, 77.1031],
+      "neighbors": ["Rohini West"]
+    },
+
+    "Samaypur Badli": {
+      "coords": [28.7512, 77.1347],
+      "neighbors": ["Rohini Sector 18"]
+    },
+    "Rohini Sector 18": {
+      "coords": [28.7427, 77.1324],
+      "neighbors": ["Samaypur Badli", "Haiderpur"]
+    },
+    "Haiderpur": {
+      "coords": [28.7370, 77.1301],
+      "neighbors": ["Rohini Sector 18", "Jahangirpuri"]
+    },
+    "Jahangirpuri": {
+      "coords": [28.7255, 77.1423],
+      "neighbors": ["Haiderpur", "Adarsh Nagar"]
+    },
+    "Adarsh Nagar": {
+      "coords": [28.7152, 77.1518],
+      "neighbors": ["Jahangirpuri", "Azadpur"]
+    },
+    "Azadpur": {
+      "coords": [28.6984, 77.1896],
+      "neighbors": ["Adarsh Nagar", "Model Town", "Shalimar Bagh", "Majlis Park"]
+    },
+    "Model Town": {
+      "coords": [28.7011, 77.1924],
+      "neighbors": ["Azadpur", "GTB Nagar"]
+    },
+    "GTB Nagar": {
+      "coords": [28.7062, 77.1938],
+      "neighbors": ["Model Town", "Vishwavidyalaya"]
+    },
+    "Vishwavidyalaya": {
+      "coords": [28.7140, 77.2135],
+      "neighbors": ["GTB Nagar", "Vidhan Sabha"]
+    },
+    "Vidhan Sabha": {
+      "coords": [28.7180, 77.2201],
+      "neighbors": ["Vishwavidyalaya", "Civil Lines"]
+    },
+    "Civil Lines": {
+      "coords": [28.7232, 77.2262],
+      "neighbors": ["Vidhan Sabha", "Kashmere Gate"]
+    },
+    "Chandni Chowk": {
+      "coords": [28.6562, 77.2278],
+      "neighbors": ["Kashmere Gate", "Chawri Bazar"]
+    },
+    "Chawri Bazar": {
+      "coords": [28.6505, 77.2293],
+      "neighbors": ["Chandni Chowk", "New Delhi"]
+    },
+    "New Delhi": {
+      "coords": [28.6420, 77.2205],
+      "neighbors": ["Chawri Bazar", "Rajiv Chowk", "Shivaji Stadium"]
+    },
+    "Patel Chowk": {
+      "coords": [28.6265, 77.2138],
+      "neighbors": ["Rajiv Chowk", "Central Secretariat"]
+    },
+    "Central Secretariat": {
+      "coords": [28.6143, 77.2167],
+      "neighbors": ["Patel Chowk", "Udyog Bhawan", "Janpath"]
+    },
+    "Udyog Bhawan": {
+      "coords": [28.6061, 77.2129],
+      "neighbors": ["Central Secretariat", "Lok Kalyan Marg"]
+    },
+    "Lok Kalyan Marg": {
+      "coords": [28.5984, 77.2106],
+      "neighbors": ["Udyog Bhawan", "Jor Bagh"]
+    },
+    "Jor Bagh": {
+      "coords": [28.5912, 77.2092],
+      "neighbors": ["Lok Kalyan Marg", "Dilli Haat - INA"]
+    },
+    "Dilli Haat - INA": {
+      "coords": [28.5687, 77.2097],
+      "neighbors": ["Jor Bagh", "AIIMS", "INA", "Sarojini Nagar"]
+    },
+    "AIIMS": {
+      "coords": [28.5672, 77.2107],
+      "neighbors": ["Dilli Haat - INA", "Green Park"]
+    },
+    "Green Park": {
+      "coords": [28.5581, 77.2065],
+      "neighbors": ["AIIMS", "Hauz Khas"]
+    },
+    "Hauz Khas": {
+      "coords": [28.5494, 77.2077],
+      "neighbors": ["Green Park", "Malviya Nagar", "IIT Delhi", "Panchsheel Park"]
+    },
+    "Malviya Nagar": {
+      "coords": [28.5368, 77.2106],
+      "neighbors": ["Hauz Khas", "Saket"]
+    },
+    "Saket": {
+      "coords": [28.5274, 77.2068],
+      "neighbors": ["Malviya Nagar", "Qutab Minar"]
+    },
+    "Qutab Minar": {
+      "coords": [28.5113, 77.1945],
+      "neighbors": ["Saket", "Chhatarpur"]
+    },
+    "Chhatarpur": {
+      "coords": [28.5029, 77.1769],
+      "neighbors": ["Qutab Minar", "Sultanpur"]
+    },
+    "Sultanpur": {
+      "coords": [28.4922, 77.1687],
+      "neighbors": ["Chhatarpur", "Ghitorni"]
+    },
+    "Ghitorni": {
+      "coords": [28.4803, 77.1576],
+      "neighbors": ["Sultanpur", "Arjangarh"]
+    },
+    "Arjangarh": {
+      "coords": [28.4693, 77.1486],
+      "neighbors": ["Ghitorni", "Guru Dronacharya"]
+    },
+    "Guru Dronacharya": {
+      "coords": [28.4577, 77.1404],
+      "neighbors": ["Arjangarh", "Sikandarpur"]
+    },
+    "Sikandarpur": {
+      "coords": [28.4799, 77.0732],
+      "neighbors": ["Guru Dronacharya", "MG Road"]
+    },
+    "MG Road": {
+      "coords": [28.4697, 77.0732],
+      "neighbors": ["Sikandarpur", "IFFCO Chowk"]
+    },
+    "IFFCO Chowk": {
+      "coords": [28.4671, 77.0638],
+      "neighbors": ["MG Road", "Huda City Centre"]
+    },
+    "Huda City Centre": {
+      "coords": [28.4595, 77.0591],
+      "neighbors": ["IFFCO Chowk"]
+    },
+
+    
+    "Dwarka Sector 21": {
+      "coords": [28.5821, 76.9380],
+      "neighbors": ["Dwarka Sector 8", "IGI Airport"]
+    },
+    "Dwarka Sector 8": {
+      "coords": [28.5841, 76.9501],
+      "neighbors": ["Dwarka Sector 21", "Dwarka Sector 9"]
+    },
+    "Dwarka Sector 9": {
+      "coords": [28.5861, 76.9622],
+      "neighbors": ["Dwarka Sector 8", "Dwarka Sector 10"]
+    },
+    "Dwarka Sector 10": {
+      "coords": [28.5881, 76.9743],
+      "neighbors": ["Dwarka Sector 9", "Dwarka Sector 11"]
+    },
+    "Dwarka Sector 11": {
+      "coords": [28.5901, 76.9864],
+      "neighbors": ["Dwarka Sector 10", "Dwarka Sector 12"]
+    },
+    "Dwarka Sector 12": {
+      "coords": [28.5922, 76.9985],
+      "neighbors": ["Dwarka Sector 11", "Dwarka Sector 13"]
+    },
+    "Dwarka Sector 13": {
+      "coords": [28.5941, 77.0106],
+      "neighbors": ["Dwarka Sector 12", "Dwarka Sector 14"]
+    },
+    "Dwarka Sector 14": {
+      "coords": [28.5962, 77.0234],
+      "neighbors": ["Dwarka Sector 13", "Dwarka"]
+    },
+    "Dwarka": {
+      "coords": [28.6087, 77.0375],
+      "neighbors": ["Dwarka Sector 14", "Dwarka Mor", "Nangli"]
+    },
+    "Dwarka Mor": {
+      "coords": [28.6215, 77.0427],
+      "neighbors": ["Dwarka", "Nawada"]
+    },
+    "Nawada": {
+      "coords": [28.6236, 77.0556],
+      "neighbors": ["Dwarka Mor", "Uttam Nagar West"]
+    },
+    "Uttam Nagar West": {
+      "coords": [28.6371, 77.0704],
+      "neighbors": ["Nawada", "Uttam Nagar East"]
+    },
+    "Uttam Nagar East": {
+      "coords": [28.6390, 77.0792],
+      "neighbors": ["Uttam Nagar West", "Janakpuri West"]
+    },
+    "Janakpuri West": {
+      "coords": [28.6411, 77.0902],
+      "neighbors": ["Uttam Nagar East", "Janakpuri East", "Dabri Mor"]
+    },
+    "Janakpuri East": {
+      "coords": [28.6428, 77.0983],
+      "neighbors": ["Janakpuri West", "Tilak Nagar"]
+    },
+    "Tilak Nagar": {
+      "coords": [28.6467, 77.1035],
+      "neighbors": ["Janakpuri East", "Subhash Nagar"]
+    },
+    "Subhash Nagar": {
+      "coords": [28.6467, 77.1035],
+      "neighbors": ["Tilak Nagar", "Tagore Garden"]
+    },
+    "Tagore Garden": {
+      "coords": [28.6481, 77.1092],
+      "neighbors": ["Subhash Nagar", "Rajouri Garden"]
+    },
+    "Rajouri Garden": {
+      "coords": [28.6492, 77.1173],
+      "neighbors": ["Tagore Garden", "Ramesh Nagar", "ESI Hospital"]
+    },
+    "Ramesh Nagar": {
+      "coords": [28.6495, 77.1231],
+      "neighbors": ["Rajouri Garden", "Moti Nagar"]
+    },
+    "Moti Nagar": {
+      "coords": [28.6511, 77.1314],
+      "neighbors": ["Ramesh Nagar", "Kirti Nagar"]
+    },
+    "Kirti Nagar": {
+      "coords": [28.6519, 77.1407],
+      "neighbors": ["Moti Nagar", "Shadipur"]
+    },
+    "Shadipur": {
+      "coords": [28.6512, 77.1538],
+      "neighbors": ["Kirti Nagar", "Patel Nagar"]
+    },
+    "Patel Nagar": {
+      "coords": [28.6519, 77.1677],
+      "neighbors": ["Shadipur", "Rajendra Place"]
+    },
+    "Rajendra Place": {
+      "coords": [28.6536, 77.1852],
+      "neighbors": ["Patel Nagar", "Karol Bagh"]
+    },
+    "Karol Bagh": {
+      "coords": [28.6514, 77.1905],
+      "neighbors": ["Rajendra Place", "Rajiv Chowk"]
+    },
+    "Rajiv Chowk": {
+      "coords": [28.6328, 77.2197],
+      "neighbors": ["Karol Bagh", "Barakhamba", "New Delhi", "Patel Chowk"]
+    },
+    "Barakhamba": {
+      "coords": [28.6312, 77.2226],
+      "neighbors": ["Rajiv Chowk", "Mandi House"]
+    },
+    "Mandi House": {
+      "coords": [28.6282, 77.2410],
+      "neighbors": ["Barakhamba", "Supreme Court", "ITO", "Janpath"]
+    },
+    "Supreme Court": {
+      "coords": [28.6189, 77.2427],
+      "neighbors": ["Mandi House", "Indraprastha"]
+    },
+    "Indraprastha": {
+      "coords": [28.6189, 77.2427],
+      "neighbors": ["Supreme Court", "Yamuna Bank"]
+    },
+    "Yamuna Bank": {
+      "coords": [28.6097, 77.2732],
+      "neighbors": ["Indraprastha", "Akshardham", "Laxmi Nagar"]
+    },
+    "Akshardham": {
+      "coords": [28.6132, 77.2772],
+      "neighbors": ["Yamuna Bank", "Mayur Vihar Phase-1"]
+    },
+    "Mayur Vihar Phase-1": {
+      "coords": [28.5847, 77.2874],
+      "neighbors": ["Akshardham", "Mayur Vihar Extension", "Hazrat Nizamuddin"]
+    },
+    "Mayur Vihar Extension": {
+      "coords": [28.5890, 77.2926],
+      "neighbors": ["Mayur Vihar Phase-1", "New Ashok Nagar"]
+    },
+    "New Ashok Nagar": {
+      "coords": [28.5882, 77.3022],
+      "neighbors": ["Mayur Vihar Extension", "Noida Sector 15"]
+    },
+    "Noida Sector 15": {
+      "coords": [28.5914, 77.3090],
+      "neighbors": ["New Ashok Nagar", "Noida Sector 16"]
+    },
+    "Noida Sector 16": {
+      "coords": [28.5796, 77.3186],
+      "neighbors": ["Noida Sector 15", "Noida Sector 18"]
+    },
+    "Noida Sector 18": {
+      "coords": [28.5708, 77.3260],
+      "neighbors": ["Noida Sector 16", "Botanical Garden"]
+    },
+    "Botanical Garden": {
+      "coords": [28.5535, 77.3341],
+      "neighbors": ["Noida Sector 18", "Golf Course", "Okhla Bird Sanctuary"]
+    },
+    "Golf Course": {
+      "coords": [28.5679, 77.3340],
+      "neighbors": ["Botanical Garden", "Noida City Centre"]
+    },
+    "Noida City Centre": {
+      "coords": [28.5748, 77.3536],
+      "neighbors": ["Golf Course", "Noida Sector 34"]
+    },
+    "Noida Sector 34": {
+      "coords": [28.5991, 77.3211],
+      "neighbors": ["Noida City Centre", "Noida Sector 52"]
+    },
+    "Noida Sector 52": {
+      "coords": [28.6127, 77.3260],
+      "neighbors": ["Noida Sector 34", "Noida Sector 61"]
+    },
+    "Noida Sector 61": {
+      "coords": [28.6237, 77.3307],
+      "neighbors": ["Noida Sector 52", "Noida Sector 59"]
+    },
+    "Noida Sector 59": {
+      "coords": [28.6282, 77.3427],
+      "neighbors": ["Noida Sector 61", "Noida Sector 62"]
+    },
+    "Noida Sector 62": {
+      "coords": [28.6304, 77.3588],
+      "neighbors": ["Noida Sector 59", "Noida Electronic City"]
+    },
+    "Noida Electronic City": {
+      "coords": [28.6280, 77.3735],
+      "neighbors": ["Noida Sector 62"]
+    },
+    "Laxmi Nagar": {
+      "coords": [28.6316, 77.2771],
+      "neighbors": ["Yamuna Bank", "Nirman Vihar"]
+    },
+    "Nirman Vihar": {
+      "coords": [28.6372, 77.2865],
+      "neighbors": ["Laxmi Nagar", "Preet Vihar"]
+    },
+    "Preet Vihar": {
+      "coords": [28.6413, 77.2945],
+      "neighbors": ["Nirman Vihar", "Karkarduma"]
+    },
+    "Karkarduma": {
+      "coords": [28.6485, 77.3037],
+      "neighbors": ["Preet Vihar", "Anand Vihar", "Karkarduma Court"]
+    },
+    "Anand Vihar": {
+      "coords": [28.6470, 77.3160],
+      "neighbors": ["Karkarduma", "IP Extension", "Kaushambi"]
+    },
+    "Kaushambi": {
+      "coords": [28.6459, 77.3246],
+      "neighbors": ["Anand Vihar", "Vaishali"]
+    },
+    "Vaishali": {
+      "coords": [28.6475, 77.3384],
+      "neighbors": ["Kaushambi"]
+    },
+
+   
+    "Kashmere Gate": {
+      "coords": [28.6675, 77.2273],
+      "neighbors": ["Lal Qila", "Shastri Park", "Tis Hazari", "Civil Lines"]
+    },
+    "Lal Qila": {
+      "coords": [28.6561, 77.2306],
+      "neighbors": ["Kashmere Gate", "Jama Masjid"]
+    },
+    "Jama Masjid": {
+      "coords": [28.6509, 77.2335],
+      "neighbors": ["Lal Qila", "Delhi Gate"]
+    },
+    "Delhi Gate": {
+      "coords": [28.6422, 77.2401],
+      "neighbors": ["Jama Masjid", "ITO"]
+    },
+    "ITO": {
+      "coords": [28.6287, 77.2428],
+      "neighbors": ["Delhi Gate", "Mandi House"]
+    },
+    "Janpath": {
+      "coords": [28.6245, 77.2193],
+      "neighbors": ["Mandi House", "Central Secretariat"]
+    },
+    "Khan Market": {
+      "coords": [28.6063, 77.2263],
+      "neighbors": ["Central Secretariat", "Jawaharlal Nehru Stadium"]
+    },
+    "Jawaharlal Nehru Stadium": {
+      "coords": [28.5992, 77.2342],
+      "neighbors": ["Khan Market", "Jangpura"]
+    },
+    "Jangpura": {
+      "coords": [28.5878, 77.2400],
+      "neighbors": ["Jawaharlal Nehru Stadium", "Lajpat Nagar"]
+    },
+    "Lajpat Nagar": {
+      "coords": [28.5708, 77.2365],
+      "neighbors": ["Jangpura", "Moolchand", "South Extension", "Vinobapuri"]
+    },
+    "Moolchand": {
+      "coords": [28.5662, 77.2327],
+      "neighbors": ["Lajpat Nagar", "Kailash Colony"]
+    },
+    "Kailash Colony": {
+      "coords": [28.5569, 77.2369],
+      "neighbors": ["Moolchand", "Nehru Place"]
+    },
+    "Nehru Place": {
+      "coords": [28.5492, 77.2540],
+      "neighbors": ["Kailash Colony", "Kalkaji Mandir"]
+    },
+    "Kalkaji Mandir": {
+      "coords": [28.5518, 77.2610],
+      "neighbors": ["Nehru Place", "Govind Puri", "Nehru Enclave", "Okhla NSIC"]
+    },
+    "Govind Puri": {
+      "coords": [28.5443, 77.2650],
+      "neighbors": ["Kalkaji Mandir", "Harkesh Nagar"]
+    },
+    "Harkesh Nagar": {
+      "coords": [28.5376, 77.2701],
+      "neighbors": ["Govind Puri", "Jasola Apollo"]
+    },
+    "Jasola Apollo": {
+      "coords": [28.5338, 77.2828],
+      "neighbors": ["Harkesh Nagar", "Sarita Vihar"]
+    },
+    "Sarita Vihar": {
+      "coords": [28.5312, 77.2911],
+      "neighbors": ["Jasola Apollo", "Mohan Estate"]
+    },
+    "Mohan Estate": {
+      "coords": [28.5232, 77.2973],
+      "neighbors": ["Sarita Vihar", "Tughlakabad"]
+    },
+    "Tughlakabad": {
+      "coords": [28.5156, 77.3018],
+      "neighbors": ["Mohan Estate", "Badarpur"]
+    },
+    "Badarpur": {
+      "coords": [28.5032, 77.3029],
+      "neighbors": ["Tughlakabad", "Sarai"]
+    },
+    "Sarai": {
+      "coords": [28.4932, 77.3027],
+      "neighbors": ["Badarpur", "NHPC Chowk"]
+    },
+    "NHPC Chowk": {
+      "coords": [28.4802, 77.2995],
+      "neighbors": ["Sarai", "Mewala Maharajpur"]
+    },
+    "Mewala Maharajpur": {
+      "coords": [28.4710, 77.3106],
+      "neighbors": ["NHPC Chowk", "Sector-28"]
+    },
+    "Sector-28": {
+      "coords": [28.4572, 77.3153],
+      "neighbors": ["Mewala Maharajpur", "Badkhal Lake"]
+    },
+    "Badkhal Lake": {
+      "coords": [28.4469, 77.3175],
+      "neighbors": ["Sector-28", "Faridabad Old"]
+    },
+    "Faridabad Old": {
+      "coords": [28.4356, 77.3177],
+      "neighbors": ["Badkhal Lake", "Crown Plaza"]
+    },
+    "Crown Plaza": {
+      "coords": [28.4278, 77.3143],
+      "neighbors": ["Faridabad Old", "Neelam Chowk Ajronda"]
+    },
+    "Neelam Chowk Ajronda": {
+      "coords": [28.4185, 77.3144],
+      "neighbors": ["Crown Plaza", "Bata Chowk"]
+    },
+    "Bata Chowk": {
+      "coords": [28.4097, 77.3133],
+      "neighbors": ["Neelam Chowk Ajronda", "Escorts Mujesar"]
+    },
+    "Escorts Mujesar": {
+      "coords": [28.3994, 77.3139],
+      "neighbors": ["Bata Chowk", "Sant Surdas - Sihi"]
+    },
+    "Sant Surdas - Sihi": {
+      "coords": [28.3865, 77.3143],
+      "neighbors": ["Escorts Mujesar", "Raja Nahar Singh"]
+    },
+    "Raja Nahar Singh": {
+      "coords": [28.3766, 77.3144],
+      "neighbors": ["Sant Surdas - Sihi"]
+    },
+
+   
+    "Majlis Park": {
+      "coords": [28.6984, 77.1905],
+      "neighbors": ["Azadpur"]
+    },
+    "Azadpur": {
+      "coords": [28.6984, 77.1896],
+      "neighbors": ["Majlis Park", "Shalimar Bagh", "Adarsh Nagar", "Model Town"]
+    },
+    "Shalimar Bagh": {
+      "coords": [28.7003, 77.1625],
+      "neighbors": ["Azadpur", "Netaji Subhash Place"]
+    },
+    "Netaji Subhash Place": {
+      "coords": [28.6981, 77.1349],
+      "neighbors": ["Shalimar Bagh", "Shakurpur", "Keshav Puram", "Kohat Enclave"]
+    },
+    "Shakurpur": {
+      "coords": [28.6923, 77.1293],
+      "neighbors": ["Netaji Subhash Place", "Punjabi Bagh West"]
+    },
+    "Punjabi Bagh West": {
+      "coords": [28.6742, 77.1274],
+      "neighbors": ["Shakurpur", "ESI Hospital"]
+    },
+    "ESI Hospital": {
+      "coords": [28.6665, 77.1270],
+      "neighbors": ["Punjabi Bagh West", "Rajouri Garden"]
+    },
+    "Rajouri Garden": {
+      "coords": [28.6492, 77.1173],
+      "neighbors": ["ESI Hospital", "Mayapuri", "Ramesh Nagar", "Tagore Garden"]
+    },
+    "Mayapuri": {
+      "coords": [28.6343, 77.1134],
+      "neighbors": ["Rajouri Garden", "Naraina Vihar"]
+    },
+    "Naraina Vihar": {
+      "coords": [28.6242, 77.1304],
+      "neighbors": ["Mayapuri", "Delhi Cantonment"]
+    },
+    "Delhi Cantonment": {
+      "coords": [28.6151, 77.1389],
+      "neighbors": ["Naraina Vihar", "Durgabai Deshmukh South Campus"]
+    },
+    "Durgabai Deshmukh South Campus": {
+      "coords": [28.5992, 77.1606],
+      "neighbors": ["Delhi Cantonment", "Sir Vishweshwaraiah Moti Bagh"]
+    },
+    "Sir Vishweshwaraiah Moti Bagh": {
+      "coords": [28.5860, 77.1798],
+      "neighbors": ["Durgabai Deshmukh South Campus", "Bhikaji Cama Place"]
+    },
+    "Bhikaji Cama Place": {
+      "coords": [28.5760, 77.1890],
+      "neighbors": ["Sir Vishweshwaraiah Moti Bagh", "Sarojini Nagar"]
+    },
+    "Sarojini Nagar": {
+      "coords": [28.5700, 77.1991],
+      "neighbors": ["Bhikaji Cama Place", "INA"]
+    },
+    "INA": {
+      "coords": [28.5693, 77.2085],
+      "neighbors": ["Sarojini Nagar", "South Extension", "Dilli Haat - INA"]
+    },
+    "South Extension": {
+      "coords": [28.5703, 77.2212],
+      "neighbors": ["INA", "Lajpat Nagar"]
+    },
+    "Vinobapuri": {
+      "coords": [28.5670, 77.2488],
+      "neighbors": ["Lajpat Nagar", "Ashram"]
+    },
+    "Ashram": {
+      "coords": [28.5666, 77.2580],
+      "neighbors": ["Vinobapuri", "Hazrat Nizamuddin"]
+    },
+    "Hazrat Nizamuddin": {
+      "coords": [28.5895, 77.2555],
+      "neighbors": ["Ashram", "Mayur Vihar Phase-1"]
+    },
+    "Mayur Vihar Pocket 1": {
+      "coords": [28.5998, 77.2938],
+      "neighbors": ["Mayur Vihar Phase-1", "Trilokpuri Sanjay Lake"]
+    },
+    "Trilokpuri Sanjay Lake": {
+      "coords": [28.6048, 77.3066],
+      "neighbors": ["Mayur Vihar Pocket 1", "East Vinod Nagar - Mayur Vihar-II"]
+    },
+    "East Vinod Nagar - Mayur Vihar-II": {
+      "coords": [28.6096, 77.3171],
+      "neighbors": ["Trilokpuri Sanjay Lake", "Mandawali - West Vinod Nagar"]
+    },
+    "Mandawali - West Vinod Nagar": {
+      "coords": [28.6262, 77.3102],
+      "neighbors": ["East Vinod Nagar - Mayur Vihar-II", "IP Extension"]
+    },
+    "IP Extension": {
+      "coords": [28.6342, 77.3147],
+      "neighbors": ["Mandawali - West Vinod Nagar", "Anand Vihar"]
+    },
+    "Karkarduma Court": {
+      "coords": [28.6536, 77.3078],
+      "neighbors": ["Karkarduma", "Krishna Nagar"]
+    },
+    "Krishna Nagar": {
+      "coords": [28.6600, 77.2867],
+      "neighbors": ["Karkarduma Court", "East Azad Nagar"]
+    },
+    "East Azad Nagar": {
+      "coords": [28.6703, 77.2828],
+      "neighbors": ["Krishna Nagar", "Welcome"]
+    },
+    "Jaffrabad": {
+      "coords": [28.6826, 77.2795],
+      "neighbors": ["Welcome", "Maujpur - Babarpur"]
+    },
+    "Maujpur - Babarpur": {
+      "coords": [28.6901, 77.2772],
+      "neighbors": ["Jaffrabad", "Gokulpuri"]
+    },
+    "Gokulpuri": {
+      "coords": [28.7043, 77.2770],
+      "neighbors": ["Maujpur - Babarpur", "Johri Enclave"]
+    },
+    "Johri Enclave": {
+      "coords": [28.7113, 77.2797],
+      "neighbors": ["Gokulpuri", "Shiv Vihar"]
+    },
+    "Shiv Vihar": {
+      "coords": [28.7197, 77.2796],
+      "neighbors": ["Johri Enclave"]
+    },
+
+   
+    "Janakpuri West": {
+      "coords": [28.6411, 77.0902],
+      "neighbors": ["Dabri Mor", "Uttam Nagar East"]
+    },
+    "Dabri Mor": {
+      "coords": [28.6223, 77.0915],
+      "neighbors": ["Janakpuri West", "Dashrath Puri"]
+    },
+    "Dashrath Puri": {
+      "coords": [28.6059, 77.0920],
+      "neighbors": ["Dabri Mor", "Palam"]
+    },
+    "Palam": {
+      "coords": [28.5877, 77.0901],
+      "neighbors": ["Dashrath Puri", "Sadar Bazaar Cantonment"]
+    },
+    "Sadar Bazaar Cantonment": {
+      "coords": [28.5699, 77.1049],
+      "neighbors": ["Palam", "Terminal 1-IGI Airport"]
+    },
+    "Terminal 1-IGI Airport": {
+      "coords": [28.5593, 77.1211],
+      "neighbors": ["Sadar Bazaar Cantonment", "Shankar Vihar"]
+    },
+    "Shankar Vihar": {
+      "coords": [28.5589, 77.1408],
+      "neighbors": ["Terminal 1-IGI Airport", "Vasant Vihar"]
+    },
+    "Vasant Vihar": {
+      "coords": [28.5661, 77.1557],
+      "neighbors": ["Shankar Vihar", "Munirka"]
+    },
+    "Munirka": {
+      "coords": [28.5577, 77.1711],
+      "neighbors": ["Vasant Vihar", "RK Puram"]
+    },
+    "RK Puram": {
+      "coords": [28.5535, 77.1837],
+      "neighbors": ["Munirka", "IIT Delhi"]
+    },
+    "IIT Delhi": {
+      "coords": [28.5469, 77.1924],
+      "neighbors": ["RK Puram", "Hauz Khas"]
+    },
+    "Panchsheel Park": {
+      "coords": [28.5434, 77.2212],
+      "neighbors": ["Hauz Khas", "Chirag Delhi"]
+    },
+    "Chirag Delhi": {
+      "coords": [28.5412, 77.2300],
+      "neighbors": ["Panchsheel Park", "Greater Kailash"]
+    },
+    "Greater Kailash": {
+      "coords": [28.5405, 77.2416],
+      "neighbors": ["Chirag Delhi", "Nehru Enclave"]
+    },
+    "Nehru Enclave": {
+      "coords": [28.5464, 77.2522],
+      "neighbors": ["Greater Kailash", "Kalkaji Mandir"]
+    },
+    "Okhla NSIC": {
+      "coords": [28.5413, 77.2678],
+      "neighbors": ["Kalkaji Mandir", "Sukhdev Vihar"]
+    },
+    "Sukhdev Vihar": {
+      "coords": [28.5382, 77.2786],
+      "neighbors": ["Okhla NSIC", "Jamia Millia Islamia"]
+    },
+    "Jamia Millia Islamia": {
+      "coords": [28.5311, 77.2834],
+      "neighbors": ["Sukhdev Vihar", "Okhla Vihar"]
+    },
+    "Okhla Vihar": {
+      "coords": [28.5255, 77.2868],
+      "neighbors": ["Jamia Millia Islamia", "Jasola Vihar Shaheen Bagh"]
+    },
+    "Jasola Vihar Shaheen Bagh": {
+      "coords": [28.5193, 77.2975],
+      "neighbors": ["Okhla Vihar", "Kalindi Kunj"]
+    },
+    "Kalindi Kunj": {
+      "coords": [28.5142, 77.3106],
+      "neighbors": ["Jasola Vihar Shaheen Bagh", "Okhla Bird Sanctuary"]
+    },
+    "Okhla Bird Sanctuary": {
+      "coords": [28.5443, 77.3171],
+      "neighbors": ["Kalindi Kunj", "Botanical Garden"]
+    },
+
+    "Dwarka": {
+      "coords": [28.6087, 77.0375],
+      "neighbors": ["Nangli", "Dwarka Mor", "Dwarka Sector 14"]
+    },
+    "Nangli": {
+      "coords": [28.6062, 76.9983],
+      "neighbors": ["Dwarka", "Najafgarh"]
+    },
+    "Najafgarh": {
+      "coords": [28.6092, 76.9846],
+      "neighbors": ["Nangli", "Dhansa Bus Stand"]
+    },
+    "Dhansa Bus Stand": {
+      "coords": [28.5977, 76.9733],
+      "neighbors": ["Najafgarh"]
+    },
+
+    
+    "New Delhi": {
+      "coords": [28.6420, 77.2205],
+      "neighbors": ["Shivaji Stadium", "Chawri Bazar", "Rajiv Chowk"]
+    },
+    "Shivaji Stadium": {
+      "coords": [28.6313, 77.2105],
+      "neighbors": ["New Delhi", "Dhaula Kuan"]
+    },
+    "Dhaula Kuan": {
+      "coords": [28.5923, 77.1604],
+      "neighbors": ["Shivaji Stadium", "Delhi Aerocity"]
+    },
+    "Delhi Aerocity": {
+      "coords": [28.5494, 77.1235],
+      "neighbors": ["Dhaula Kuan", "IGI Airport"]
+    },
+    "IGI Airport": {
+      "coords": [28.5563, 77.0820],
+      "neighbors": ["Delhi Aerocity", "Dwarka Sector 21"]
+    }
+  }
+}
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    r = 6371
+    return c * r
+
+def dijkstra(graph, start, end):
+    if start not in graph or end not in graph:
+        return [], 0, 0, 0
+    distances = {station: float('inf') for station in graph}
+    previous = {station: None for station in graph}
+    distances[start] = 0
+    queue = [(0, start)]
+    visited_nodes = set()
+    while queue:
+        current_distance, current_station = heapq.heappop(queue)
+        visited_nodes.add(current_station)
+        if current_station == end:
+            break
+        for neighbor in graph[current_station]["neighbors"]:
+            if neighbor not in graph:
+                continue
+            start_coords = graph[current_station]["coords"]
+            neighbor_coords = graph[neighbor]["coords"]
+            weight = calculate_distance(start_coords[0], start_coords[1], neighbor_coords[0], neighbor_coords[1])
+            distance = current_distance + weight
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                previous[neighbor] = current_station
+                heapq.heappush(queue, (distance, neighbor))
+    path = []
+    station = end
+    while station is not None:
+        path.insert(0, station)
+        station = previous[station]
+    total_distance = distances[end]
+    fare = calculate_fare(total_distance)
+    if path and path[0] == start:
+        return path, total_distance, fare, len(visited_nodes)
+    else:
+        return [], 0, 0, 0
+
+def calculate_fare(distance_km):
+    if distance_km <= 2:
+        return 10
+    elif distance_km <= 5:
+        return 15
+    elif distance_km <= 10:
+        return 25
+    elif distance_km <= 15:
+        return 35
+    elif distance_km <= 25:
+        return 45
+    else:
+        return 60
+
+# ---- API ENDPOINTS ----
+
+@app.route('/stations')
+def stations_api():
+    return jsonify(sorted(list(metro_graph["stations"].keys())))
+
+@app.route('/route', methods=['POST'])
+def route_api():
+    data = request.get_json()
+    source = data.get('source')
+    destination = data.get('destination')
+    if not source or not destination:
+        return jsonify({'error': 'Invalid input'}), 400
+    path, distance, fare, visited = dijkstra(metro_graph["stations"], source, destination)
+    if not path:
+        return jsonify({'error': 'No route found'}), 404
+    return jsonify({
+        'path': path,
+        'distance': round(distance, 2),
+        'stations_count': len(path),
+        'fare': fare,
+        'visited': visited
+    })
+
+if __name__ == '__main__':
+    app.run(debug=True)
